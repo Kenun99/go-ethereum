@@ -149,7 +149,12 @@ func (c *Contract) GetOp(n uint64) OpCode {
 		return OpCode(c.Code[n])
 	}
 
-	return STOP
+	// For legacy contracts running out of code section means STOP
+	if c.IsLegacy() {
+		return STOP
+	}
+	// For EOF contracts running out of code section means abort execution with failure
+	return INVALID
 }
 
 // Caller returns the caller of the contract.
