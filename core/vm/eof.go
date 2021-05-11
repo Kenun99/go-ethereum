@@ -45,6 +45,11 @@ func hasEOFMagic(code []byte) bool {
 	return 1+eofMagicLen <= len(code) && code[1] == eofMagic
 }
 
+// isEOFCode returns true if code starts with valid FORMAT byte + EOF magic
+func isEOFCode(code []byte) bool {
+	return hasFormatByte(code) && hasEOFMagic(code)
+}
+
 // readEOF1Header parses EOF1-formatted code header
 func readEOF1Header(code []byte) (EOF1Header, error) {
 	codeLen := len(code)
