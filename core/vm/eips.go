@@ -177,5 +177,6 @@ func opBaseFee(pc *uint64, interpreter *EVMInterpreter, scope *ScopeContext) ([]
 }
 
 func enable3860(jt *JumpTable) {
-	// Do nothing.
+	jt[CREATE].dynamicGas = gasCreateEip3860
+	jt[CREATE2].dynamicGas = gasCreate2Eip3860
 }
