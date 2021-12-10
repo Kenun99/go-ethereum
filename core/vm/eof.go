@@ -18,6 +18,7 @@ package vm
 
 import (
 	"encoding/binary"
+	"reflect"
 )
 
 const (
@@ -116,6 +117,27 @@ sectionLoop:
 	}
 
 	return header, nil
+}
+
+// validateInstructions checks that there're no undefined instructions and truncated immediates in the code
+func validateInstructions(code []byte, header *EOF1Header, jumpTable *JumpTable) error {
+	i := header.CodeBeginOffset()
+	for i < header.CodeEndOffset() {
+		opcode := OpCode(code[i])
+		if reflect.ValueOf(jumpTable[opcode].execute).Pointer() == reflect.ValueOf(opUndefined).Pointer() {
+			return ErrEOF1UndefinedInstruction
+		}
+		if opcode >= PUSH1 && opcode <= PUSH32 {
+			i += uint64(opcode) - uint64(PUSH1) + 1
+		}
+		i += 1
+	}
+
+	if i > header.CodeEndOffset() {
+		return ErrEOF1TruncatedImmediate
+	}
+
+	return nil
 }
 
 // validateEOF returns true if code has valid format

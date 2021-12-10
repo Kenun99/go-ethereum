@@ -37,6 +37,8 @@ var (
 	ErrNonceUintOverflow        = errors.New("nonce uint64 overflow")
 	ErrInvalidCode              = errors.New("invalid code: must not begin with 0xef")
 	ErrInvalidCodeFormat        = errors.New("invalid code: format validation failed")
+	ErrInitCodeValidationFailed = errors.New("invalid init code: instruction validation failed")
+	ErrCodeValidationFailed     = errors.New("invalid code: instruction validation failed")
 
 	// errStopToken is an internal token indicating interpreter loop termination,
 	// never returned to outside callers.
@@ -56,6 +58,8 @@ var (
 	ErrEOF1UnknownSection               = errors.New("unknown section id")
 	ErrEOF1CodeSectionMissing           = errors.New("no code section")
 	ErrEOF1InvalidTotalSize             = errors.New("invalid total size")
+	ErrEOF1UndefinedInstruction         = errors.New("undefined instruction")
+	ErrEOF1TruncatedImmediate           = errors.New("truncated immediate argument")
 )
 
 // ErrStackUnderflow wraps an evm error when the items on the stack less

@@ -441,6 +441,15 @@ func hasEIP3540(vmConfig *Config) bool {
 	return false
 }
 
+func hasEIP3670(vmConfig *Config) bool {
+	for _, eip := range vmConfig.ExtraEips {
+		if eip == 3670 {
+			return true
+		}
+	}
+	return false
+}
+
 // create creates a new contract using code as deployment code.
 func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64, value *big.Int, address common.Address, typ OpCode) ([]byte, common.Address, uint64, error) {
 	// Depth check execution. Fail if we're trying to execute above the
@@ -482,6 +491,13 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		if err != nil {
 			return nil, common.Address{}, gas, ErrInvalidCodeFormat
 		}
+
+		if hasEIP3670(&evm.Config) {
+			err := validateInstructions(codeAndHash.code, &header, evm.Config.JumpTable)
+			if err != nil {
+				return nil, common.Address{}, gas, ErrInitCodeValidationFailed
+			}
+		}
 	}
 
 	// Initialise a new contract and set the code that is to be used by the EVM.
@@ -510,8 +526,14 @@ func (evm *EVM) create(caller ContractRef, codeAndHash *codeAndHash, gas uint64,
 		if hasEIP3540(&evm.Config) {
 			// Allow only valid EOF1 if EIP-3540 is enabled.
 			if hasEOFMagic(ret) {
-				if !validateEOF(ret) {
+				retHeader, errRetCode := readEOF1Header(ret)
+				if errRetCode != nil {
 					err = ErrInvalidCodeFormat
+				} else if hasEIP3670(&evm.Config) {
+					errValidation := validateInstructions(ret, &retHeader, evm.Config.JumpTable)
+					if errValidation != nil {
+						err = ErrCodeValidationFailed
+					}
 				}
 			} else {
 				// Reject non-EOF code starting with 0xEF.
