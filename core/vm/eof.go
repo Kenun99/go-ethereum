@@ -18,7 +18,6 @@ package vm
 
 import (
 	"encoding/binary"
-	"reflect"
 )
 
 const (
@@ -124,7 +123,7 @@ func validateInstructions(code []byte, header *EOF1Header, jumpTable *JumpTable)
 	i := header.CodeBeginOffset()
 	for i < header.CodeEndOffset() {
 		opcode := OpCode(code[i])
-		if reflect.ValueOf(jumpTable[opcode].execute).Pointer() == reflect.ValueOf(opUndefined).Pointer() {
+		if jumpTable[opcode].undefined {
 			return ErrEOF1UndefinedInstruction
 		}
 		if opcode >= PUSH1 && opcode <= PUSH32 {
