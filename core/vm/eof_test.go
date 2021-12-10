@@ -35,6 +35,10 @@ var eof1ValidTests = []eof1Test{
 	{"EF0001010002020004006000AABBCCDD", 2, 4},
 	{"EF00010100040200020060006001AABB", 4, 2},
 	{"EF000101000602000400600060016002AABBCCDD", 6, 4},
+	{"EF000101000100FE", 1, 0}, // INVALID is defined
+	{"EF0001010021007F0000000000000000000000000000000000000000000000000000000000000000", 33, 0},       // PUSH32
+	{"EF0001010021007F0C0D0E0F1E1F2122232425262728292A2B2C2D2E2F494A4B4C4D4E4F5C5D5E5F", 33, 0},       // undefined instructions inside push data
+	{"EF000101000102002000000C0D0E0F1E1F2122232425262728292A2B2C2D2E2F494A4B4C4D4E4F5C5D5E5F", 1, 32}, // undefined instructions inside data section
 }
 
 type eof1InvalidTest struct {
@@ -54,7 +58,7 @@ var notEOFTests = []string{
 }
 
 // Codes starting with EF + magic, but the rest is invalid
-var eof1InvalidTests = []eof1InvalidTest{
+var eof1InvalidFormatTests = []eof1InvalidTest{
 	// valid: {"EF0001010002020004006000AABBCCDD", nil},
 	{"EF00", ErrEOF1InvalidVersion.Error()},                                                 // no version
 	{"EF0000", ErrEOF1InvalidVersion.Error()},                                               // invalid version
@@ -84,6 +88,13 @@ var eof1InvalidTests = []eof1InvalidTest{
 	{"EF0001010002030004006000AABBCCDD", ErrEOF1UnknownSection.Error()},                     // section id = 3
 }
 
+var eof1InvalidInstructionsTests = []eof1InvalidTest{
+	{"EF0001010001000C", ErrEOF1UndefinedInstruction.Error()},                                                             // 0C is undefined instruction
+	{"EF000101000100EF", ErrEOF1UndefinedInstruction.Error()},                                                             // EF is undefined instruction
+	{"EF00010100010060", ErrEOF1TruncatedImmediate.Error()},                                                               // PUSH1 without data
+	{"EF0001010020007F00000000000000000000000000000000000000000000000000000000000000", ErrEOF1TruncatedImmediate.Error()}, // PUSH32 with 31 bytes of data
+}
+
 func TestIsEOFCode(t *testing.T) {
 	for _, test := range notEOFTests {
 		if isEOFCode(common.Hex2Bytes(test)) {
@@ -98,7 +109,7 @@ func TestIsEOFCode(t *testing.T) {
 	}
 
 	// invalid but still EOF
-	for _, test := range eof1InvalidTests {
+	for _, test := range eof1InvalidFormatTests {
 		if !isEOFCode(common.Hex2Bytes(test.code)) {
 			t.Errorf("code %v expected to be EOF", test.code)
 		}
@@ -120,7 +131,7 @@ func TestReadEOF1Header(t *testing.T) {
 		}
 	}
 
-	for _, test := range eof1InvalidTests {
+	for _, test := range eof1InvalidFormatTests {
 		_, err := readEOF1Header(common.Hex2Bytes(test.code))
 		if err == nil {
 			t.Errorf("code %v expected to be invalid", test.code)
@@ -138,7 +149,7 @@ func TestValidateEOF(t *testing.T) {
 		}
 	}
 
-	for _, test := range eof1InvalidTests {
+	for _, test := range eof1InvalidFormatTests {
 		if validateEOF(common.Hex2Bytes(test.code)) {
 			t.Errorf("code %v expected to be invalid", test.code)
 		}
@@ -154,6 +165,107 @@ func TestReadValidEOF1Header(t *testing.T) {
 		}
 		if header.dataSize != test.dataSize {
 			t.Errorf("code %v dataSize expected %v, got %v", test.code, test.dataSize, header.dataSize)
+		}
+	}
+}
+
+func TestValidateInstructions(t *testing.T) {
+	jt := &londonInstructionSet
+	for _, test := range eof1ValidTests {
+		code := common.Hex2Bytes(test.code)
+		header, err := readEOF1Header(code)
+		if err != nil {
+			t.Errorf("code %v header validation failure, error: %v", test.code, err)
+		}
+
+		err = validateInstructions(code, &header, jt)
+		if err != nil {
+			t.Errorf("code %v instruction validation failure, error: %v", test.code, err)
+		}
+	}
+
+	for _, test := range eof1InvalidInstructionsTests {
+		code := common.Hex2Bytes(test.code)
+		header, err := readEOF1Header(code)
+		if err != nil {
+			t.Errorf("code %v header validation failure, error: %v", test.code, err)
+		}
+
+		err = validateInstructions(code, &header, jt)
+		if err == nil {
+			t.Errorf("code %v expected to be invalid", test.code)
+		} else if err.Error() != test.error {
+			t.Errorf("code %v expected error: \"%v\" got error: \"%v\"", test.code, test.error, err.Error())
+		}
+	}
+}
+
+func TestValidateUndefinedInstructions(t *testing.T) {
+	jt := &londonInstructionSet
+	code := common.Hex2Bytes("EF0001010001000C")
+	instrByte := &code[7]
+	for opcode := uint16(0); opcode <= 0xff; opcode++ {
+		if OpCode(opcode) >= PUSH1 && OpCode(opcode) <= PUSH32 {
+			continue
+		}
+
+		*instrByte = byte(opcode)
+		header, err := readEOF1Header(code)
+		if err != nil {
+			t.Errorf("code %v header validation failure, error: %v", code, err)
+		}
+
+		_, defined := opCodeToString[OpCode(opcode)]
+
+		err = validateInstructions(code, &header, jt)
+		if defined {
+			if err != nil {
+				t.Errorf("code %v instruction validation failure, error: %v", code, err)
+			}
+		} else {
+			if err == nil {
+				t.Errorf("opcode %v expected to be invalid", opcode)
+			} else if err != ErrEOF1UndefinedInstruction {
+				t.Errorf("opcode %v unxpected error: \"%v\"", opcode, err.Error())
+			}
+		}
+	}
+}
+
+func TestValidateTruncatedPush(t *testing.T) {
+	jt := &londonInstructionSet
+	zeroes := [32]byte{}
+	code := common.Hex2Bytes("EF0001010001000C")
+	for opcode := PUSH1; opcode <= PUSH32; opcode++ {
+		requiredBytes := opcode - PUSH1 + 1
+		codeTruncated := append(code, zeroes[:requiredBytes-1]...)
+		codeTruncated[5] = byte(len(codeTruncated) - 7)
+		codeTruncated[7] = byte(opcode)
+
+		header, err := readEOF1Header(codeTruncated)
+		if err != nil {
+			t.Errorf("code %v header validation failure, error: %v", code, err)
+		}
+
+		err = validateInstructions(codeTruncated, &header, jt)
+		if err == nil {
+			t.Errorf("code %v has truncated PUSH, expected to be invalid", codeTruncated)
+		} else if err != ErrEOF1TruncatedImmediate {
+			t.Errorf("code %v unexpected validation error: %v", codeTruncated, err)
+		}
+
+		codeValid := append(code, zeroes[:requiredBytes]...)
+		codeValid[5] = byte(len(codeValid) - 7)
+		codeValid[7] = byte(opcode)
+
+		header, err = readEOF1Header(codeValid)
+		if err != nil {
+			t.Errorf("code %v header validation failure, error: %v", code, err)
+		}
+
+		err = validateInstructions(codeValid, &header, jt)
+		if err != nil {
+			t.Errorf("code %v instruction validation failure, error: %v", code, err)
 		}
 	}
 }
