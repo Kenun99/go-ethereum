@@ -57,6 +57,7 @@ var PrecompiledContractsByzantium = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{6}): &bn256Add{},
 	common.BytesToAddress([]byte{7}): &bn256ScalarMul{},
 	common.BytesToAddress([]byte{8}): &bn256Pairing{},
+	common.BytesToAddress([]byte{9}): &keccak256hash{},
 }
 
 // RunPrecompiledContract runs and evaluates the output of a precompiled contract.
@@ -99,6 +100,20 @@ func (c *ecrecover) Run(input []byte) ([]byte, error) {
 
 	// the first byte of pubkey is bitcoin heritage
 	return common.LeftPadBytes(crypto.Keccak256(pubKey[1:])[12:], 32), nil
+}
+// keccak256 implemented as a native contract.
+type keccak256hash struct{}
+
+// RequiredGas returns the gas required to execute the pre-compiled contract.
+//
+// This method does not require any overflow checking as the input size gas costs
+// required for anything significant is so high it's impossible to pay for.
+func (c *keccak256hash) RequiredGas(input []byte) uint64 {
+       return uint64(len(input)+31)/32*params.Sha256PerWordGas + params.Sha256BaseGas
+}
+func (c *keccak256hash) Run(input []byte) ([]byte, error) {
+       h :=  crypto.Keccak256(input)
+       return h[:], nil
 }
 
 // SHA256 implemented as a native contract.

@@ -166,6 +166,8 @@ func newAlethGenesisSpec(network string, genesis *core.Genesis) (*alethGenesisSp
 			Linear:        &alethGenesisSpecLinearPricing{Base: 40000}})
 		spec.setPrecompile(8, &alethGenesisSpecBuiltin{Name: "alt_bn128_pairing_product",
 			StartingBlock: (hexutil.Uint64)(genesis.Config.ByzantiumBlock.Uint64())})
+		spec.setPrecompile(9, &alethGenesisSpecBuiltin{Name: "keccak256",
+			Linear: &alethGenesisSpecLinearPricing{Base: 60, Word: 12}})
 	}
 	return spec, nil
 }
@@ -410,6 +412,9 @@ func newParityChainSpec(network string, genesis *core.Genesis, bootnodes []strin
 		})
 		spec.setPrecompile(8, &parityChainSpecBuiltin{
 			Name: "alt_bn128_pairing", ActivateAt: blnum, Pricing: &parityChainSpecPricing{AltBnPairing: &parityChainSpecAltBnPairingPricing{Base: 100000, Pair: 80000}},
+		})
+		spec.setPrecompile(9, &parityChainSpecBuiltin{
+			Name: "keccak256", Pricing: &parityChainSpecPricing{Linear: &parityChainSpecLinearPricing{Base: 60, Word: 12}},
 		})
 	}
 	return spec, nil

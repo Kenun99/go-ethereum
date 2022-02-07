@@ -19,6 +19,8 @@ package vm
 import (
 	"errors"
 	"math/big"
+	"fmt"
+	"os"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
@@ -628,6 +630,11 @@ func opMstore8(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memo
 
 func opSload(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
 	loc := stack.peek()
+
+	fd, _ := os.OpenFile("/txtracetmp", os.O_RDWR|os.O_CREATE|os.O_APPEND,0666)
+	fd.Write([]byte(fmt.Sprintf("SLOAD: %064x\n", loc)))
+    fd.Close()
+
 	val := interpreter.evm.StateDB.GetState(contract.Address(), common.BigToHash(loc))
 	loc.SetBytes(val.Bytes())
 	return nil, nil
@@ -636,6 +643,11 @@ func opSload(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memory
 func opSstore(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
 	loc := common.BigToHash(stack.pop())
 	val := stack.pop()
+
+	fd, _ := os.OpenFile("/txtracetmp", os.O_RDWR|os.O_CREATE|os.O_APPEND,0666)
+	fd.Write([]byte(fmt.Sprintf("SSTORE: %064x %064x\n", loc, val)))
+	fd.Close()
+
 	interpreter.evm.StateDB.SetState(contract.Address(), loc, common.BigToHash(val))
 
 	interpreter.intPool.put(val)
@@ -754,6 +766,11 @@ func opCall(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memory 
 	gas := interpreter.evm.callGasTemp
 	// Pop other call parameters.
 	addr, value, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
+
+	fd, _ := os.OpenFile("/txtracetmp", os.O_RDWR|os.O_CREATE|os.O_APPEND,0666)
+	fd.Write([]byte(fmt.Sprintf("CALL: \n")))
+    fd.Close()
+
 	toAddr := common.BigToAddress(addr)
 	value = math.U256(value)
 	// Get the arguments from the memory.
@@ -783,6 +800,11 @@ func opCallCode(pc *uint64, interpreter *EVMInterpreter, contract *Contract, mem
 	gas := interpreter.evm.callGasTemp
 	// Pop other call parameters.
 	addr, value, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
+
+	fd, _ := os.OpenFile("/txtracetmp", os.O_RDWR|os.O_CREATE|os.O_APPEND,0666)
+	fd.Write([]byte(fmt.Sprintf("CALLCODE: \n")))
+   	fd.Close()
+
 	toAddr := common.BigToAddress(addr)
 	value = math.U256(value)
 	// Get arguments from the memory.
@@ -812,6 +834,11 @@ func opDelegateCall(pc *uint64, interpreter *EVMInterpreter, contract *Contract,
 	gas := interpreter.evm.callGasTemp
 	// Pop other call parameters.
 	addr, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
+
+	fd, _ := os.OpenFile("/txtracetmp", os.O_RDWR|os.O_CREATE|os.O_APPEND,0666)
+	fd.Write([]byte(fmt.Sprintf("CALLDELEGATE: \n")))
+	fd.Close()
+
 	toAddr := common.BigToAddress(addr)
 	// Get arguments from the memory.
 	args := memory.Get(inOffset.Int64(), inSize.Int64())
@@ -837,6 +864,11 @@ func opStaticCall(pc *uint64, interpreter *EVMInterpreter, contract *Contract, m
 	gas := interpreter.evm.callGasTemp
 	// Pop other call parameters.
 	addr, inOffset, inSize, retOffset, retSize := stack.pop(), stack.pop(), stack.pop(), stack.pop(), stack.pop()
+
+	fd, _ := os.OpenFile("/txtracetmp", os.O_RDWR|os.O_CREATE|os.O_APPEND,0666)
+	fd.Write([]byte(fmt.Sprintf("CALLSTATIC: \n")))
+    fd.Close()
+
 	toAddr := common.BigToAddress(addr)
 	// Get arguments from the memory.
 	args := memory.Get(inOffset.Int64(), inSize.Int64())
@@ -877,6 +909,10 @@ func opStop(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memory 
 }
 
 func opSuicide(pc *uint64, interpreter *EVMInterpreter, contract *Contract, memory *Memory, stack *Stack) ([]byte, error) {
+	fd, _ := os.OpenFile("/txtracetmp", os.O_RDWR|os.O_CREATE|os.O_APPEND,0666)
+	fd.Write([]byte("SUICIDE: \n"))
+	fd.Close()
+
 	balance := interpreter.evm.StateDB.GetBalance(contract.Address())
 	interpreter.evm.StateDB.AddBalance(common.BigToAddress(stack.pop()), balance)
 
@@ -894,6 +930,14 @@ func makeLog(size int) executionFunc {
 		for i := 0; i < size; i++ {
 			topics[i] = common.BigToHash(stack.pop())
 		}
+
+		fd, _ := os.OpenFile("/txtracetmp", os.O_RDWR|os.O_CREATE|os.O_APPEND,0666)
+		fd.Write([]byte(fmt.Sprintf("LOG: %x %x", mStart, mSize)))
+		for i := 0; i < size; i++ {
+			fd.Write([]byte(fmt.Sprintf(" %x", topics[i])))
+		}
+		fd.Write([]byte("\n"))
+        fd.Close()
 
 		d := memory.Get(mStart.Int64(), mSize.Int64())
 		interpreter.evm.StateDB.AddLog(&types.Log{
