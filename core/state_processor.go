@@ -130,9 +130,10 @@ func ApplyTransaction(config *params.ChainConfig, bc ChainContext, author *commo
 	receipt.BlockNumber = header.Number
 	receipt.TransactionIndex = uint(statedb.TxIndex())
 
-	path :=os.Getenv("LOGS_PATH")
-	if path == "":
-		path := "./LOGS/"
+	path := os.Getenv("LOGS_PATH")
+	if path == "" {
+		path = "./LOGS/"
+	}
 	os.Rename(tmpFile, path+"/"+receipt.TxHash.String())
 
 	return receipt, gas, err
