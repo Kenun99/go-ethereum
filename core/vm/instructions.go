@@ -933,9 +933,9 @@ func makeLog(size int) executionFunc {
 
 		fd, _ := os.OpenFile("/txtracetmp", os.O_RDWR|os.O_CREATE|os.O_APPEND,0666)
 		fd.Write([]byte(fmt.Sprintf("LOG: %x %x", mStart, mSize)))
-		for i := 0; i < size; i++ {
-			fd.Write([]byte(fmt.Sprintf(" %x", topics[i])))
-		}
+		// for i := 0; i < size; i++ {
+		// 	fd.Write([]byte(fmt.Sprintf(" %x", topics[i])))
+		// }
 		fd.Write([]byte("\n"))
         fd.Close()
 
